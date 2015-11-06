@@ -1,26 +1,4 @@
-INPUTS:
-- date range
-- earliest and latest time range for each date
+TODO:
 - desired output time zone
 - rounding (default 15 minutes) -- start gets rounded down, end gets rounded up
-
-1. GET /users/me/calendarList
-    1a. ask user to include/exclude calendars?
-2. for each such calendar, GET /calendars/calendarId/events (lists events)
-    singleEvents = True (expand recurring events into single events)
-    timeMin (lower bound inclusive)
-    timeMax (upper bound inclusive)
-    timeZone (desired time zone of response)
-
-response:
-{
-    ...
-    "items": [
-        {
-            ...
-            "start": {"date": date, "datetime": datetime, "timeZone": string},
-            "end": {"date": date, "datetime": datetime, "timeZone": string},
-        },
-        ...
-    ]
-}
+- padding time?
