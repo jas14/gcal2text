@@ -9,7 +9,7 @@ from oauth2client import tools
 
 import datetime
 import argparse
-import dateutil.parser
+import pytz
 from dateutil.tz import tzlocal
 from dateutil import parser as dateparse
 
@@ -53,7 +53,8 @@ def get_date(prompt):
         except ValueError:
             print("That date wasn't valid. Please try again.")
             pass
-    return tzlocal().localize(date)
+    return date
+    # return date.replace(tzinfo=tzlocal())
 
 
 def get_time(prompt):
@@ -86,9 +87,15 @@ def main():
                         help="Inclusive end date (YYYY-MM-DD)")
     parser.add_argument('-i', '--interactive', dest="interactive",
                         action="store_true")
+    parser.add_argument('--clamp-start', dest='clamp_start',
+                        help="Start of time range for each day")
+    parser.add_argument('--clamp-end', dest='clamp_end',
+                        help="End of time range for each day")
     parser.add_argument('-z', '--tz', dest="tz", help="Timezone")
 
     args = parser.parse_args()
+
+    timezone = pytz.timezone('US/Pacific')
 
     if args.interactive or not (args.start_date or args.end_date):
         start_date = get_date('Enter a start date: ')
@@ -114,18 +121,36 @@ def main():
         print("You must specify a start and end date.")
         return 1
     else:
-        ltz = tzlocal()
+        # ltz = tzlocal()
         start_date = datetime.datetime.strptime(args.start_date, "%Y-%m-%d")
-        start_date = start_date.replace(tzinfo=ltz)
+        # start_date = start_date.replace(tzinfo=ltz)
         end_date = (datetime.datetime.strptime(args.end_date, "%Y-%m-%d") +
                     datetime.timedelta(days=1))
-        end_date = end_date.replace(tzinfo=ltz)
+        # end_date = end_date.replace(tzinfo=ltz)
+        if start_date >= end_date:
+            raise ValueError("end date {0} is before start date {1}".format(
+                args.end_date, args.start_date))
 
-    # TODO get clamp ranges from user!
-    clamp_start = start_date.replace(hour=9, minute=0, second=0)
-    clamp_end = start_date.replace(hour=18, minute=0, second=0)
+        if (not args.clamp_start or not args.clamp_end):
+            print("Defaulting to range 9 AM - 6 PM...")
+            clamp_start = start_date.replace(hour=9, minute=0)
+            clamp_end = start_date.replace(hour=18, minute=0)
+        else:
+            clamp_start = dateparse.parse(args.clamp_start)
+            clamp_start = start_date.replace(hour=clamp_start.hour,
+                                             minute=clamp_start.minute)
 
-    # 'Z' indicates UTC time
+            clamp_end = dateparse.parse(args.clamp_end)
+            clamp_end = end_date.replace(hour=clamp_end.hour,
+                                         minute=clamp_end.minute)
+        if clamp_end <= clamp_start:
+            raise ValueError("end time {0} is before start time {1}".format(
+                args.end_date, args.start_date))
+
+    # convert clamps to desired timezone
+    clamp_end = clamp_end.replace(tzinfo=tzlocal()).astimezone(timezone)
+    clamp_start = clamp_start.replace(tzinfo=tzlocal()).astimezone(timezone)
+
     calendarList = service.calendarList().list().execute()
     calendars = {cal['id']: cal['summary']
                  for cal in calendarList.get('items')}
@@ -138,18 +163,29 @@ def main():
     # with so few events sorted() is probably fine
     for cal_id in calendars.keys():
         events = service.events().list(
-            calendarId=cal_id, timeMin=start_date.isoformat(),
-            timeMax=end_date.isoformat(), singleEvents=True,
+            calendarId=cal_id,
+            timeMin=start_date.replace(tzinfo=tzlocal()).isoformat(),
+            timeMax=end_date.replace(tzinfo=tzlocal()).isoformat(),
+            singleEvents=True,
+            timeZone=timezone,
             orderBy='startTime').execute().get('items')
         # interested in: start, end
         for evt in events:
             if 'dateTime' in evt['start']:  # make sure evt isn't all-day
                 all_evts.append({
-                    'start': dateutil.parser.parse(evt['start']['dateTime']),
-                    'end': dateutil.parser.parse(evt['end']['dateTime'])
+                    'start': dateparse.parse(evt['start']['dateTime']).replace(
+                        tzinfo=timezone),
+                    'end': dateparse.parse(evt['end']['dateTime']).replace(
+                        tzinfo=timezone)
                 })
 
     all_evts = sorted(all_evts, key=lambda evt: evt['start'])
+
+    print("\n====== YOUR AVAILABILITY IS: ======")
+    print("{0} to {1} (all times {2})\n".format(
+        start_date.strftime("%-m/%d"),
+        end_date.strftime("%-m/%d"),
+        timezone.tzname(start_date)))
 
     ranges = []
     range_start = clamp_start
@@ -180,8 +216,8 @@ def main():
 
     for (start, end) in ranges:
         # start, end are guaranteed to be same day b/c of clamps
-        print(start.strftime("%a, %m/%d from %I:%M %p"), end='')
-        print(end.strftime(" to %I:%M %p"))
+        print(start.strftime("%a, %m/%d from %-I:%M %p"), end='')
+        print(end.strftime(" to %-I:%M %p"))
 
 
 if __name__ == '__main__':

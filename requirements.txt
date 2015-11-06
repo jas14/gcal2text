@@ -1,1 +1,3 @@
 google-api-python-client==1.4.2
+pytz>=2015.7
+python-dateutil>=2.2,<=3.0
