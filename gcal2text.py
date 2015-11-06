@@ -54,7 +54,6 @@ def get_date(prompt):
             print("That date wasn't valid. Please try again.")
             pass
     return date
-    # return date.replace(tzinfo=tzlocal())
 
 
 def get_time(prompt):
@@ -67,6 +66,29 @@ def get_time(prompt):
             print("That time wasn't valid. Please try again.")
             pass
     return time
+
+
+def fetch_events(calendars, service, start_date, end_date, timezone):
+    all_evts = []
+    for cal_id in calendars.keys():
+        events = service.events().list(
+            calendarId=cal_id,
+            timeMin=start_date.replace(tzinfo=tzlocal()).isoformat(),
+            timeMax=end_date.replace(tzinfo=tzlocal()).isoformat(),
+            singleEvents=True,
+            timeZone=timezone,
+            orderBy='startTime').execute().get('items')
+        # interested in: start, end
+        for evt in events:
+            if 'dateTime' in evt['start']:  # make sure evt isn't all-day
+                all_evts.append({
+                    'start': dateparse.parse(evt['start']['dateTime']).replace(
+                        tzinfo=timezone),
+                    'end': dateparse.parse(evt['end']['dateTime']).replace(
+                        tzinfo=timezone)
+                })
+
+    return sorted(all_evts, key=lambda evt: evt['start'])
 
 
 def main():
@@ -95,7 +117,8 @@ def main():
 
     args = parser.parse_args()
 
-    timezone = pytz.timezone('US/Pacific')
+    # timezone = pytz.timezone('US/Pacific')
+    timezone = tzlocal()
 
     if args.interactive or not (args.start_date or args.end_date):
         start_date = get_date('Enter a start date: ')
@@ -141,8 +164,8 @@ def main():
                                              minute=clamp_start.minute)
 
             clamp_end = dateparse.parse(args.clamp_end)
-            clamp_end = end_date.replace(hour=clamp_end.hour,
-                                         minute=clamp_end.minute)
+            clamp_end = start_date.replace(hour=clamp_end.hour,
+                                           minute=clamp_end.minute)
         if clamp_end <= clamp_start:
             raise ValueError("end time {0} is before start time {1}".format(
                 args.end_date, args.start_date))
@@ -158,28 +181,7 @@ def main():
     for name in calendars.values():
         print("\t{0}".format(name))
 
-    all_evts = []
-    # could probably do a multi-way "mergesort"-esque zip strategy here, but
-    # with so few events sorted() is probably fine
-    for cal_id in calendars.keys():
-        events = service.events().list(
-            calendarId=cal_id,
-            timeMin=start_date.replace(tzinfo=tzlocal()).isoformat(),
-            timeMax=end_date.replace(tzinfo=tzlocal()).isoformat(),
-            singleEvents=True,
-            timeZone=timezone,
-            orderBy='startTime').execute().get('items')
-        # interested in: start, end
-        for evt in events:
-            if 'dateTime' in evt['start']:  # make sure evt isn't all-day
-                all_evts.append({
-                    'start': dateparse.parse(evt['start']['dateTime']).replace(
-                        tzinfo=timezone),
-                    'end': dateparse.parse(evt['end']['dateTime']).replace(
-                        tzinfo=timezone)
-                })
-
-    all_evts = sorted(all_evts, key=lambda evt: evt['start'])
+    all_evts = fetch_events(calendars, service, start_date, end_date, timezone)
 
     print("\n====== YOUR AVAILABILITY IS: ======")
     print("{0} to {1} (all times {2})\n".format(
@@ -204,9 +206,10 @@ def main():
                 clamp_end += datetime.timedelta(days=1)
                 range_start = clamp_start
 
-            end = evt['start']
-            ranges.append((range_start, end))
-            range_start = evt['end']
+            if evt['start'] >= clamp_start:
+                ranges.append((range_start, evt['start']))
+
+            range_start = max(evt['end'], range_start)
 
         # always make sure the range_start is in the clamp region
         if range_start >= clamp_end:
