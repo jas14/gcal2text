@@ -1,4 +1,0 @@
-TODO:
-- desired output time zone
-- rounding (default 15 minutes) -- start gets rounded down, end gets rounded up
-- padding time?
