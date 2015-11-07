@@ -12,10 +12,16 @@ import argparse
 import pytz
 from dateutil.tz import tzlocal
 from dateutil import parser as dateparse
+import sys
 
 SCOPES = 'https://www.googleapis.com/auth/calendar.readonly'
 CLIENT_SECRET_FILE = 'client_secret.json'
 APPLICATION_NAME = 'gcal2text'
+
+
+def err(msg):
+    sys.stderr.write(msg + "\n")
+    sys.exit(1)
 
 
 def get_credentials():
@@ -107,69 +113,90 @@ def main():
                         help="Inclusive start date (YYYY-MM-DD)")
     parser.add_argument('--end-date', dest="end_date",
                         help="Inclusive end date (YYYY-MM-DD)")
-    parser.add_argument('-i', '--interactive', dest="interactive",
+    parser.add_argument('-b', '--batch', dest="batch",
+                        help="Batch mode (no interactive prompt)",
                         action="store_true")
     parser.add_argument('--clamp-start', dest='clamp_start',
                         help="Start of time range for each day")
     parser.add_argument('--clamp-end', dest='clamp_end',
                         help="End of time range for each day")
-    parser.add_argument('-z', '--tz', dest="tz", help="Timezone")
+    parser.add_argument('-z', '--tz', dest="tz",
+                        help="Timezone (e.g. US/Pacific)")
 
     args = parser.parse_args()
 
-    # timezone = pytz.timezone('US/Pacific')
-    timezone = tzlocal()
-
-    if args.interactive or not (args.start_date or args.end_date):
+    # get start date
+    if not args.start_date:
+        if args.batch:
+            err("You must provide a start date in batch mode.")
         start_date = get_date('Enter a start date: ')
+    else:
+        start_date = datetime.datetime.strptime(args.start_date, "%Y-%m-%d")
+
+    # get end date
+    if not args.end_date:
+        if args.batch:
+            err("You must provide an end date in batch mode.")
         end_date = None
         while end_date is None:
             end_date = (get_date('Enter an end date: ') +
                         datetime.timedelta(days=1))
-            if end_date < start_date:
-                print("The end date must be after the start date.")
+            if end_date <= start_date:
+                print("The end date must not be before the start date.")
                 end_date = None
-        clamp_start = get_time('Enter a start time: ')
+    else:
+        end_date = (datetime.datetime.strptime(args.end_date, "%Y-%m-%d") +
+                    datetime.timedelta(days=1))
+
+    # get clamp times
+    if not args.clamp_start:
+        if args.batch:
+            err("You must provide a start time in batch mode.")
+        clamp_start = get_time('Enter a start time (local time): ')
         clamp_start = start_date.replace(hour=clamp_start.hour,
                                          minute=clamp_start.minute)
         clamp_end = None
         while clamp_end is None:
-            clamp_end = get_time('Enter an end time: ')
+            clamp_end = get_time('Enter an end time (local time): ')
             clamp_end = start_date.replace(hour=clamp_end.hour,
                                            minute=clamp_end.minute)
             if clamp_end <= clamp_start:
                 print("The end time must be after the start time.")
                 clamp_end = None
-    elif not (args.start_date and args.end_date):
-        print("You must specify a start and end date.")
-        return 1
     else:
-        # ltz = tzlocal()
-        start_date = datetime.datetime.strptime(args.start_date, "%Y-%m-%d")
-        # start_date = start_date.replace(tzinfo=ltz)
-        end_date = (datetime.datetime.strptime(args.end_date, "%Y-%m-%d") +
-                    datetime.timedelta(days=1))
-        # end_date = end_date.replace(tzinfo=ltz)
-        if start_date >= end_date:
-            raise ValueError("end date {0} is before start date {1}".format(
-                args.end_date, args.start_date))
+        clamp_start = dateparse.parse(args.clamp_start)
+        clamp_start = start_date.replace(hour=clamp_start.hour,
+                                         minute=clamp_start.minute)
 
-        if (not args.clamp_start or not args.clamp_end):
-            print("Defaulting to range 9 AM - 6 PM...")
-            clamp_start = start_date.replace(hour=9, minute=0)
-            clamp_end = start_date.replace(hour=18, minute=0)
-        else:
-            clamp_start = dateparse.parse(args.clamp_start)
-            clamp_start = start_date.replace(hour=clamp_start.hour,
-                                             minute=clamp_start.minute)
-
-            clamp_end = dateparse.parse(args.clamp_end)
-            clamp_end = start_date.replace(hour=clamp_end.hour,
-                                           minute=clamp_end.minute)
+        clamp_end = dateparse.parse(args.clamp_end)
+        clamp_end = start_date.replace(hour=clamp_end.hour,
+                                       minute=clamp_end.minute)
         if clamp_end <= clamp_start:
-            raise ValueError("end time {0} is before start time {1}".format(
-                args.end_date, args.start_date))
+            err("End time {0} is before start time {1}".format(
+                args.clamp_end, args.clamp_start))
 
+    # get timezone
+    if args.tz:
+        timezone = pytz.timezone(args.tz)
+    else:
+        timezone = tzlocal()
+        while True:
+            tzstr = raw_input('Enter a timezone (e.g. US/Pacific) '
+                              '[{0}]: '.format(
+                                  timezone.tzname(datetime.datetime.now())))
+            if tzstr == "":
+                break
+            try:
+                timezone = pytz.timezone(tzstr)
+                break
+            except pytz.exceptions.UnknownTimeZoneError:
+                print("That is not a recognized timezone. See "
+                      "https://en.wikipedia.org/wiki/"
+                      "List_of_tz_database_time_zones "
+                      "for timezone names.")
+                pass
+
+    # done getting arguments!!
     # convert clamps to desired timezone
     clamp_end = clamp_end.replace(tzinfo=tzlocal()).astimezone(timezone)
     clamp_start = clamp_start.replace(tzinfo=tzlocal()).astimezone(timezone)
