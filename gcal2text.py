@@ -40,12 +40,14 @@ def get_credentials():
     credential_path = os.path.join(credential_dir,
                                    'gcal2text.json')
 
+    flags = tools.argparser.parse_args(args=[])
+
     store = oauth2client.file.Storage(credential_path)
     credentials = store.get()
     if not credentials or credentials.invalid:
         flow = client.flow_from_clientsecrets(CLIENT_SECRET_FILE, SCOPES)
         flow.user_agent = APPLICATION_NAME
-        credentials = tools.run_flow(flow, store, None)
+        credentials = tools.run_flow(flow, store, flags)
         print('Storing credentials to ' + credential_path)
     return credentials
 
@@ -98,15 +100,6 @@ def fetch_events(calendars, service, start_date, end_date, timezone):
 
 
 def main():
-    """Shows basic usage of the Google Calendar API.
-
-    Creates a Google Calendar API service object and outputs a list of the next
-    10 events on the user's calendar.
-    """
-    credentials = get_credentials()
-    http = credentials.authorize(httplib2.Http())
-    service = discovery.build('calendar', 'v3', http=http)
-
     # parse command-line args
     parser = argparse.ArgumentParser()
     parser.add_argument('--start-date', dest="start_date",
@@ -124,6 +117,10 @@ def main():
                         help="Timezone (e.g. US/Pacific)")
 
     args = parser.parse_args()
+
+    credentials = get_credentials()
+    http = credentials.authorize(httplib2.Http())
+    service = discovery.build('calendar', 'v3', http=http)
 
     # get start date
     if not args.start_date:
