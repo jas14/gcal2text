@@ -218,9 +218,9 @@ def main():
     all_evts = fetch_events(calendars, service, start_date, end_date, timezone)
 
     print("\n====== YOUR AVAILABILITY IS: ======")
-    print("{0} to {1} (all times {2})\n".format(
+    print("{0} through {1} (all times {2})\n".format(
         start_date.strftime("%-m/%d"),
-        end_date.strftime("%-m/%d"),
+        (end_date - datetime.timedelta(days=1)).strftime("%-m/%d"),
         timezone.tzname(start_date)))
 
     ranges = []
