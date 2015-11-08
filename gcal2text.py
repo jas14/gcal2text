@@ -251,6 +251,16 @@ def main():
             clamp_end += datetime.timedelta(days=1)
             range_start = clamp_start
 
+    # finish out days with no events in them
+    end_date = end_date.replace(tzinfo=tzlocal())
+    start_date = start_date.replace(tzinfo=tzlocal())
+
+    while clamp_start < end_date:
+        ranges.append((clamp_start, clamp_end))
+        clamp_start += datetime.timedelta(days=1)
+        clamp_end += datetime.timedelta(days=1)
+        range_start = clamp_start
+
     for (start, end) in ranges:
         # start, end are guaranteed to be same day b/c of clamps
         print(start.strftime("%a, %m/%d from %-I:%M %p"), end='')
