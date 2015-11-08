@@ -17,7 +17,7 @@ import sys
 SCOPES = 'https://www.googleapis.com/auth/calendar.readonly'
 CLIENT_SECRET_FILE = 'client_secret.json'
 APPLICATION_NAME = 'gcal2text'
-
+DATE_FORMAT = 'YYYY-MM-DD'
 
 def err(msg):
     sys.stderr.write(msg + "\n")
@@ -126,7 +126,7 @@ def main():
     if not args.start_date:
         if args.batch:
             err("You must provide a start date in batch mode.")
-        start_date = get_date('Enter a start date: ')
+        start_date = get_date('Enter a start date (' + DATE_FORMAT + '): ')
     else:
         start_date = datetime.datetime.strptime(args.start_date, "%Y-%m-%d")
 
@@ -136,7 +136,7 @@ def main():
             err("You must provide an end date in batch mode.")
         end_date = None
         while end_date is None:
-            end_date = (get_date('Enter an end date: ') +
+            end_date = (get_date('Enter an end date (' + DATE_FORMAT + '): ') +
                         datetime.timedelta(days=1))
             if end_date <= start_date:
                 print("The end date must not be before the start date.")
