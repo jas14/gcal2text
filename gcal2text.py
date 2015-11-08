@@ -13,11 +13,14 @@ import pytz
 from dateutil.tz import tzlocal
 from dateutil import parser as dateparse
 import sys
+import re
 
 SCOPES = 'https://www.googleapis.com/auth/calendar.readonly'
 CLIENT_SECRET_FILE = 'client_secret.json'
 APPLICATION_NAME = 'gcal2text'
 DATE_FORMAT = 'YYYY-MM-DD'
+NUM_RE = re.compile('[0-9]')
+
 
 def err(msg):
     sys.stderr.write(msg + "\n")
@@ -67,10 +70,13 @@ def get_date(prompt):
 def get_time(prompt):
     time = None
     while time is None:
-        timestr = raw_input(prompt)
+        timestr = raw_input(prompt).strip()
+        if NUM_RE.search(timestr) is None:
+            print("You must enter a time.")
+            continue
         try:
             time = dateparse.parse(timestr)
-        except ValueError:
+        except (ValueError, TypeError):
             print("That time wasn't valid. Please try again.")
             pass
     return time
