@@ -158,6 +158,14 @@ def main():
         clamp_start = get_time('Enter a start time (local time): ')
         clamp_start = start_date.replace(hour=clamp_start.hour,
                                          minute=clamp_start.minute)
+    else:
+        clamp_start = dateparse.parse(args.clamp_start)
+        clamp_start = start_date.replace(hour=clamp_start.hour,
+                                         minute=clamp_start.minute)
+
+    if not args.clamp_end:
+        if args.batch:
+            err("You must provide an end time in batch mode.")
         clamp_end = None
         while clamp_end is None:
             clamp_end = get_time('Enter an end time (local time): ')
@@ -167,10 +175,6 @@ def main():
                 print("The end time must be after the start time.")
                 clamp_end = None
     else:
-        clamp_start = dateparse.parse(args.clamp_start)
-        clamp_start = start_date.replace(hour=clamp_start.hour,
-                                         minute=clamp_start.minute)
-
         clamp_end = dateparse.parse(args.clamp_end)
         clamp_end = start_date.replace(hour=clamp_end.hour,
                                        minute=clamp_end.minute)
