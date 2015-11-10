@@ -97,7 +97,7 @@ def fetch_events(calendars, service, start_date, end_date, timezone):
             if 'dateTime' in evt['start']:  # make sure evt isn't all-day
                 all_evts.append({
                     'start': dateparse.parse(evt['start']['dateTime']),
-                    'end': dateparse.parse(evt['start']['dateTime'])
+                    'end': dateparse.parse(evt['end']['dateTime'])
                 })
 
     return sorted(all_evts, key=lambda evt: evt['start'])
