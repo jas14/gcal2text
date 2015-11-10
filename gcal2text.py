@@ -96,10 +96,8 @@ def fetch_events(calendars, service, start_date, end_date, timezone):
         for evt in events:
             if 'dateTime' in evt['start']:  # make sure evt isn't all-day
                 all_evts.append({
-                    'start': dateparse.parse(evt['start']['dateTime']).replace(
-                        tzinfo=timezone),
-                    'end': dateparse.parse(evt['end']['dateTime']).replace(
-                        tzinfo=timezone)
+                    'start': dateparse.parse(evt['start']['dateTime']),
+                    'end': dateparse.parse(evt['start']['dateTime'])
                 })
 
     return sorted(all_evts, key=lambda evt: evt['start'])
@@ -233,14 +231,14 @@ def main():
             range_start = evt['end']
         else:
             # we've found a gap!
-            while evt['start'] > clamp_end:
+            while evt['start'] >= clamp_end:
                 ranges.append((range_start, clamp_end))
 
                 clamp_start += datetime.timedelta(days=1)
                 clamp_end += datetime.timedelta(days=1)
                 range_start = clamp_start
 
-            if evt['start'] >= clamp_start:
+            if evt['start'] >= clamp_start and range_start < evt['start']:
                 ranges.append((range_start, evt['start']))
 
             range_start = max(evt['end'], range_start)
@@ -256,7 +254,7 @@ def main():
     start_date = start_date.replace(tzinfo=tzlocal())
 
     while clamp_start < end_date:
-        ranges.append((clamp_start, clamp_end))
+        ranges.append((range_start, clamp_end))
         clamp_start += datetime.timedelta(days=1)
         clamp_end += datetime.timedelta(days=1)
         range_start = clamp_start
